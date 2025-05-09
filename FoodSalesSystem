@@ -1,0 +1,229 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+
+#define MAX_SALES 1000
+#define MAX_NAME 50
+#define FILE_NAME "sales.txt"
+
+typedef struct {
+    char date[11]; // dd/mm/yyyy
+    char product[MAX_NAME];
+    int quantity;
+    float price;
+} Sale;
+
+Sale sales[MAX_SALES];
+int sales_count = 0;
+
+// Utility for colors
+#define COLOR_RESET   "\x1b[0m"
+#define COLOR_GREEN   "\x1b[32m"
+#define COLOR_BLUE    "\x1b[34m"
+#define COLOR_YELLOW  "\x1b[33m"
+#define COLOR_RED     "\x1b[31m"
+
+// Function prototypes
+void read_sales();
+void write_sale(Sale s);
+void add_sale();
+void view_today_sales();
+void view_all_sales();
+void view_stats();
+void clear_screen();
+void pause();
+void menu();
+
+int main() {
+    read_sales();
+    menu();
+    return 0;
+}
+
+void clear_screen() {
+    system("clear"); // use "cls" on Windows
+}
+
+void pause() {
+    printf("Press Enter to continue...");
+    getchar();
+    getchar();
+}
+
+void read_sales() {
+    FILE *f = fopen(FILE_NAME, "r");
+    if (!f) return;
+
+    while (fscanf(f, "%10[^,],%49[^,],%d,%f\n", sales[sales_count].date, sales[sales_count].product, &sales[sales_count].quantity, &sales[sales_count].price) == 4) {
+        sales_count++;
+    }
+    fclose(f);
+}
+
+void write_sale(Sale s) {
+    FILE *f = fopen(FILE_NAME, "a");
+    if (!f) {
+        printf(COLOR_RED "Error opening file for writing!\n" COLOR_RESET);
+        return;
+    }
+    fprintf(f, "%s,%s,%d,%.2f\n", s.date, s.product, s.quantity, s.price);
+    fclose(f);
+}
+
+void add_sale() {
+    clear_screen();
+    printf(COLOR_BLUE "=== Add Sale ===\n" COLOR_RESET);
+    Sale s;
+
+    printf("✅ Date of sale (dd/mm/yyyy): ");
+    scanf("%10s", s.date);
+    printf("✅ Product name: ");
+    scanf("%s", s.product);
+    printf("✅ Quantity: ");
+    scanf("%d", &s.quantity);
+    printf("✅ Total price (RON): ");
+    scanf("%f", &s.price);
+
+    sales[sales_count++] = s;
+    write_sale(s);
+
+    printf(COLOR_GREEN "✅ Sale added!\n" COLOR_RESET);
+    pause();
+}
+
+void view_today_sales() {
+    clear_screen();
+    char date[11];
+    float total = 0;
+    printf(COLOR_BLUE "=== View Sales for a Specific Day ===\n" COLOR_RESET);
+    printf("✅ Date to search (dd/mm/yyyy): ");
+    scanf("%10s", date);
+
+    printf(COLOR_YELLOW "Sales for %s:\n" COLOR_RESET, date);
+    for (int i = 0; i < sales_count; i++) {
+        if (strcmp(sales[i].date, date) == 0) {
+            printf("📦 Product: " COLOR_GREEN "%s" COLOR_RESET ", Quantity: %d, Total: %.2f RON\n",
+                sales[i].product, sales[i].quantity, sales[i].price);
+            total += sales[i].price;
+        }
+    }
+    printf("💰 Total for the day: %.2f RON\n", total);
+    pause();
+}
+
+void view_all_sales() {
+    clear_screen();
+    printf(COLOR_BLUE "=== Sales History ===\n" COLOR_RESET);
+    for (int i = 0; i < sales_count; i++) {
+        printf("%d. [%s] " COLOR_GREEN "%s" COLOR_RESET " x%d - %.2f RON\n",
+            i + 1, sales[i].date, sales[i].product, sales[i].quantity, sales[i].price);
+    }
+    pause();
+}
+
+void view_stats() {
+    clear_screen();
+    printf(COLOR_BLUE "=== Statistics ===\n" COLOR_RESET);
+    float day_totals[100] = {0};
+    char dates[100][11];
+    int day_count = 0;
+
+    // Best-selling product logic
+    char products[100][MAX_NAME];
+    int product_counts[100] = {0};
+    int product_index = 0;
+
+    for (int i = 0; i < sales_count; i++) {
+        // Most profitable day
+        bool found = false;
+        for (int j = 0; j < day_count; j++) {
+            if (strcmp(dates[j], sales[i].date) == 0) {
+                day_totals[j] += sales[i].price;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            strcpy(dates[day_count], sales[i].date);
+            day_totals[day_count++] = sales[i].price;
+        }
+
+        // Best-selling product
+        found = false;
+        for (int j = 0; j < product_index; j++) {
+            if (strcmp(products[j], sales[i].product) == 0) {
+                product_counts[j] += sales[i].quantity;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            strcpy(products[product_index], sales[i].product);
+            product_counts[product_index++] = sales[i].quantity;
+        }
+    }
+
+    // Most profitable day
+    float max = 0;
+    char best_day[11];
+    for (int i = 0; i < day_count; i++) {
+        if (day_totals[i] > max) {
+            max = day_totals[i];
+            strcpy(best_day, dates[i]);
+        }
+    }
+    printf("📅 Most profitable day: " COLOR_GREEN "%s" COLOR_RESET " (%.2f RON)\n", best_day, max);
+
+    // Best-selling product
+    int max_qty = 0;
+    char best_product[MAX_NAME];
+    for (int i = 0; i < product_index; i++) {
+        if (product_counts[i] > max_qty) {
+            max_qty = product_counts[i];
+            strcpy(best_product, products[i]);
+        }
+    }
+    printf("🔥 Best-selling product: " COLOR_GREEN "%s" COLOR_RESET " (%d units)\n", best_product, max_qty);
+
+    // Average quantity ordered per product
+    printf(COLOR_YELLOW "\n📊 Average quantity per product:\n" COLOR_RESET);
+    for (int i = 0; i < product_index; i++) {
+        int total = 0, count = 0;
+        for (int j = 0; j < sales_count; j++) {
+            if (strcmp(sales[j].product, products[i]) == 0) {
+                total += sales[j].quantity;
+                count++;
+            }
+        }
+        printf("%s: %.2f\n", products[i], (float)total / count);
+    }
+
+    pause();
+}
+
+void menu() {
+    int choice;
+    do {
+        clear_screen();
+        printf(COLOR_YELLOW "\n=== Fast Food Sales Recording System ===\n" COLOR_RESET);
+        printf("1. Add Sale\n");
+        printf("2. View Sales for a Day\n");
+        printf("3. View All Sales\n");
+        printf("4. View Statistics\n");
+        printf("0. Exit\n");
+        printf("Choose an option: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: add_sale(); break;
+            case 2: view_today_sales(); break;
+            case 3: view_all_sales(); break;
+            case 4: view_stats(); break;
+            case 0: break;
+            default:
+                printf(COLOR_RED "Invalid option!\n" COLOR_RESET);
+                pause();
+        }
+    } while (choice != 0);
+}
